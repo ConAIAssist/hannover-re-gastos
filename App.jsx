@@ -124,7 +124,7 @@ function EF({expenses:ex,setExpenses:se,currencies:cc,sa,ssa}){const[n,sn]=useSt
 export default function App(){
   const[loggedIn,setLoggedIn]=useState(()=>!!getToken());
   const[au,sAu]=useState([]);
-  const[cu,sCu]=useState(null);
+  const[cu,sCu]=useState(()=>{try{const t=getToken();if(!t)return null;const p=JSON.parse(atob(t.split(".")[1]));return{id:p.id,email:p.email,role:p.role,name:p.name,area:p.area};}catch(e){return null;}});
   const[pg,sPg]=useState("dashboard");const[rpts,sRpts]=useState([]);const[sel,sSel]=useState(null);const[snr,sSnr]=useState(false);const[edt,sEdt]=useState(null);const[um,sUm]=useState(false);const[toast,sToast]=useState(null);const[loading,setLoading]=useState(true);
   const{trm,trmDate,loading:tl,error:te,currencies:cc,refresh:rf,addCurrency:addC,removeCurrency:remC}=useTRM();
 
@@ -141,7 +141,10 @@ export default function App(){
   const hUpd=async(u)=>{try{const r=await api("/reports/"+u.id,{method:"PUT",body:{destination:u.destination,tripPurpose:u.trip_purpose||u.tripPurpose,dateFrom:u.date_from||u.dateFrom,dateTo:u.date_to||u.dateTo,currency:u.currency,costCenter:u.cost_center||u.costCenter,type:u.type,expenses:u.expenses}});sRpts(p=>p.map(x=>x.id===u.id?r:x));sEdt(null);sSel(r);st("Actualizado");}catch(e){st("Error: "+e.message);}};
   const nav=p=>{sPg(p);sSel(null);sSnr(false);sEdt(null);};
   const adm=["admin","general_manager","vp","director","hr","it_admin"];
-  const ni=[{id:"dashboard",label:"Inicio",icon:<Home size={20}/>},{id:"reports",label:"Reportes",icon:<FileText size={20}/>},...(pa.length>0?[{id:"approvals",label:"Aprobar",icon:<CheckCircle2 size={20}/>,badge:pa.length}]:[]),{id:"rates",label:"Tasas",icon:<Globe size={20}/>},...(adm.includes(cu.role)?[{id:"users",label:"Usuarios",icon:<Users size={20}/>}]:[])];
+  const ni=[{id:"dashboard",label:"Inicio",icon:<Home size={20}/>},{id:"reports",label:"Reportes",icon:<FileText size={20}/>},...(pa.length>0?[{id:"approvals",label:"Aprobar",icon:<CheckCircle2 size={20}/>,badge:pa.length}]:[]),{id:"rates",label:"Tasas",icon:<Globe size={20}/>},...(cu&&adm.includes(cu.role)?[{id:"users",label:"Usuarios",icon:<Users size={20}/>}]:[])];
+
+  /* ── LOADING after login ── */
+  if(loggedIn&&!cu)return<div style={{fontFamily:T.font,background:T.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{globalStyles}</style><div style={{textAlign:"center"}}><div style={{width:50,height:50,borderRadius:14,background:"linear-gradient(145deg,"+T.navy+","+T.navyL+")",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:16,fontWeight:800,marginBottom:16}}>HR</div><div style={{fontSize:14,color:T.g4}}>Cargando...</div></div></div>;
 
   const content=(()=>{
     if(pg==="dashboard")return<Dash rpts={my} cu={cu} nav={nav} sel={r=>{sSel(r);sPg("reports");}} pa={pa} cc={cc} trm={trm} td={trmDate} tl={tl} te={te} rf={rf}/>;
