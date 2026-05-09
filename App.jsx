@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   FileText, Upload, Check, X, Clock, DollarSign, Plane,
   ChevronRight, Plus, Trash2, Eye, Send,
@@ -213,14 +214,74 @@ export default function App(){
   </div>;
 }
 
-function Dash({rpts,cu,nav,sel,pa,cc,trm,td,tl,te,rf}){const tot=rpts.reduce((s,r)=>s+gt(r,cc),0);const pn=rpts.filter(r=>!["approved_final","rejected","draft"].includes(r.status)).length;
-  return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}><div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:800,letterSpacing:"-0.02em"}}>Hola, {cu.name.split(" ")[0]}</h1><p style={{color:T.g4,fontSize:13,marginTop:3,fontWeight:500}}>Resumen de gastos de viaje</p></div>
-    <div style={{background:"linear-gradient(145deg,"+T.navy+","+T.navyL+")",borderRadius:T.r,padding:"20px 22px",marginBottom:16,color:"white",position:"relative",overflow:"hidden",boxShadow:"0 8px 24px rgba(10,30,61,0.3)"}}><div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/><div style={{position:"absolute",bottom:-20,right:40,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,0.03)"}}/><div style={{position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:11,opacity:0.6,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>TRM &mdash; Banco de la Republica</div><div style={{fontSize:32,fontWeight:800,lineHeight:1,letterSpacing:"-0.02em"}}>{tl?"...":trm?"$"+trm.toLocaleString("es-CO",{maximumFractionDigits:2}):"$4.250"}</div><div style={{fontSize:11,opacity:0.5,marginTop:6}}>COP/USD {td&&(" - "+fs(td))}</div></div><button onClick={rf} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:T.rs,width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",color:"white"}}><RefreshCw size={16}/></button></div>{te&&<div style={{fontSize:10,color:"#FCD34D",marginTop:8}}>{te}</div>}</div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}><SC icon={<DollarSign size={22}/>} label="Total COP" value={fc(tot)} accent={T.green}/><SC icon={<FileText size={22}/>} label="Reportes" value={rpts.length} sub={pn+" en proceso"} accent={T.blue}/></div>
+function Dash({rpts,cu,nav,sel,pa,cc,trm,td,tl,te,rf}){
+  const tot=rpts.reduce((s,r)=>s+gt(r,cc),0);const pn=rpts.filter(r=>!["approved_final","rejected","draft"].includes(r.status)).length;
+  const empRoles=["employee","analyst","senior_analyst","specialist","intern","assistant"];
+  const leaderRoles=["team_leader","supervisor","coordinator","manager"];
+  const adminRoles=["admin","accountant","treasury","hr","auditor","compliance","legal","it_admin","director","vp","general_manager"];
+  const isEmp=empRoles.includes(cu.role);const isLead=leaderRoles.includes(cu.role);const isAdm=adminRoles.includes(cu.role);
+
+  // Stats
+  const approved=rpts.filter(r=>r.status==="approved_final").length;
+  const rejected=rpts.filter(r=>r.status==="rejected").length;
+  const drafts=rpts.filter(r=>r.status==="draft").length;
+
+  // By category
+  const byCat={};rpts.forEach(r=>(r.expenses||[]).forEach(e=>{const cat=CATS.find(c=>c.id===e.category)||CATS[5];byCat[cat.label]=(byCat[cat.label]||0)+cv(e.amount,e.currency,cc);}));
+  const catData=Object.entries(byCat).map(([name,value])=>({name,value:Math.round(value)})).sort((a,b)=>b.value-a.value);
+  const catColors=[T.blue,T.purple,T.amber,T.greenL,T.pink,T.g5,"#0EA5E9","#EA580C"];
+
+  // By status
+  const statusData=[{name:"Borrador",value:drafts,color:T.g5},{name:"En proceso",value:pn,color:T.blue},{name:"Aprobados",value:approved,color:T.green},{name:"Rechazados",value:rejected,color:T.red}].filter(d=>d.value>0);
+
+  // By area (admin only)
+  const byArea={};rpts.forEach(r=>{const a=r.area||"Otro";byArea[a]=(byArea[a]||0)+gt(r,cc);});
+  const areaData=Object.entries(byArea).map(([name,value])=>({name,value:Math.round(value)})).sort((a,b)=>b.value-a.value);
+
+  const ChartCard=({title,children})=><div style={{...S.card,padding:16,marginBottom:14}}><div style={{fontSize:14,fontWeight:700,marginBottom:12}}>{title}</div>{children}</div>;
+  const fmtTick=(v)=>v>=1000000?"$"+Math.round(v/1000000)+"M":v>=1000?"$"+Math.round(v/1000)+"K":"$"+v;
+
+  return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}><div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:800,letterSpacing:"-0.02em"}}>Hola, {cu.name.split(" ")[0]}</h1><p style={{color:T.g4,fontSize:13,marginTop:3,fontWeight:500}}>{isEmp?"Tus gastos de viaje":isLead?"Resumen de tu equipo":"Panel ejecutivo de gastos"}</p></div>
+
+    {/* TRM Card */}
+    <div style={{background:"linear-gradient(145deg,"+T.navy+","+T.navyL+")",borderRadius:T.r,padding:"20px 22px",marginBottom:16,color:"white",position:"relative",overflow:"hidden",boxShadow:"0 8px 24px rgba(10,30,61,0.3)"}}><div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/><div style={{position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:11,opacity:0.6,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>TRM &mdash; Banco de la Republica</div><div style={{fontSize:32,fontWeight:800,lineHeight:1,letterSpacing:"-0.02em"}}>{tl?"...":trm?"$"+trm.toLocaleString("es-CO",{maximumFractionDigits:2}):"$4.250"}</div><div style={{fontSize:11,opacity:0.5,marginTop:6}}>COP/USD {td&&(" - "+fs(td))}</div></div><button onClick={rf} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:T.rs,width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",color:"white"}}><RefreshCw size={16}/></button></div>{te&&<div style={{fontSize:10,color:"#FCD34D",marginTop:8}}>{te}</div>}</div>
+
+    {/* Stat Cards */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+      <SC icon={<DollarSign size={22}/>} label="Total COP" value={fc(tot)} accent={T.green}/>
+      <SC icon={<FileText size={22}/>} label="Reportes" value={rpts.length} sub={pn+" en proceso"} accent={T.blue}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+      <div style={{...S.card,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:T.green}}>{approved}</div><div style={{fontSize:10,color:T.g4,marginTop:2}}>Aprobados</div></div>
+      <div style={{...S.card,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:T.blue}}>{pn}</div><div style={{fontSize:10,color:T.g4,marginTop:2}}>En proceso</div></div>
+      <div style={{...S.card,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:T.red}}>{rejected}</div><div style={{fontSize:10,color:T.g4,marginTop:2}}>Rechazados</div></div>
+    </div>
+
+    {/* Charts: By Category (all roles) */}
+    {catData.length>0&&<ChartCard title="Gastos por Categoria">
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:140,height:140,flexShrink:0}}><ResponsiveContainer width="100%" height={140}><PieChart><Pie data={catData} dataKey="value" cx="50%" cy="50%" outerRadius={60} innerRadius={30}>{catData.map((d,i)=><Cell key={i} fill={catColors[i%catColors.length]}/>)}</Pie></PieChart></ResponsiveContainer></div>
+        <div style={{flex:1,minWidth:0}}>{catData.map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><div style={{width:10,height:10,borderRadius:3,background:catColors[i%catColors.length],flexShrink:0}}/><div style={{flex:1,fontSize:11,color:T.g6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div><div style={{fontSize:11,fontWeight:700,color:T.g8,flexShrink:0}}>{fc(d.value)}</div></div>)}</div>
+      </div>
+    </ChartCard>}
+
+    {/* Charts: By Status (leaders + admin) */}
+    {(isLead||isAdm)&&statusData.length>0&&<ChartCard title="Pipeline de Reportes">
+      <ResponsiveContainer width="100%" height={160}><BarChart data={statusData} layout="vertical" margin={{left:10,right:10,top:5,bottom:5}}><XAxis type="number" hide/><YAxis type="category" dataKey="name" width={80} tick={{fontSize:11,fill:T.g5}}/><Tooltip formatter={v=>v+" reportes"}/><Bar dataKey="value" radius={[0,6,6,0]}>{statusData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Bar></BarChart></ResponsiveContainer>
+    </ChartCard>}
+
+    {/* Charts: By Area (admin only) */}
+    {isAdm&&areaData.length>0&&<ChartCard title="Gastos por Area">
+      <ResponsiveContainer width="100%" height={Math.max(120,areaData.length*40)}><BarChart data={areaData} layout="vertical" margin={{left:10,right:10,top:5,bottom:5}}><XAxis type="number" tickFormatter={fmtTick} tick={{fontSize:10,fill:T.g4}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:11,fill:T.g5}}/><Tooltip formatter={v=>fc(v)}/><Bar dataKey="value" fill={T.blue} radius={[0,6,6,0]}/></BarChart></ResponsiveContainer>
+    </ChartCard>}
+
+    {/* Import + Approvals */}
     <button onClick={()=>nav("import")} style={{width:"100%",...S.card,padding:"14px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12,textAlign:"left",cursor:"pointer"}}><div style={{width:42,height:42,borderRadius:12,background:T.blueA,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><FileSpreadsheet size={20} color={T.blue}/></div><div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Importar desde archivo</div><div style={{fontSize:12,color:T.g4,marginTop:2}}>Excel, CSV, TSV</div></div><ChevronRight size={18} color={T.g3}/></button>
     {pa.length>0&&<button onClick={()=>nav("approvals")} style={{width:"100%",background:"linear-gradient(135deg,#FEF3C7,#FDE68A)",border:"1px solid #FCD34D",borderRadius:T.r,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:12,textAlign:"left",boxShadow:"0 4px 12px rgba(217,119,6,0.1)"}}><AlertTriangle size={20} color={T.amber}/><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:"#92400E"}}>{pa.length} aprobacion(es) pendiente(s)</div></div><ArrowRight size={18} color={T.amber}/></button>}
+
+    {/* Recent */}
     <h2 style={{fontSize:16,fontWeight:700,marginBottom:12}}>Recientes</h2>
-    {rpts.slice(0,5).map(r=>{const t=gt(r,cc);return<button key={r.id} onClick={()=>sel(r)} style={{...S.card,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,textAlign:"left",width:"100%",marginBottom:10,cursor:"pointer"}}><div style={{width:42,height:42,borderRadius:12,flexShrink:0,background:SMAP[r.status]?.bg,color:SMAP[r.status]?.color,display:"flex",alignItems:"center",justifyContent:"center"}}><Plane size={18}/></div><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.destination}</div><div style={{fontSize:11,color:T.g4,marginTop:3,fontWeight:500}}>{r.id} - {fs(r.dateFrom)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:14,fontWeight:800}}>{fc(t)}</div><div style={{marginTop:4}}><Badge status={r.status}/></div></div></button>;})}
+    {rpts.slice(0,5).map(r=>{const t=gt(r,cc);return<button key={r.id} onClick={()=>sel(r)} style={{...S.card,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,textAlign:"left",width:"100%",marginBottom:10,cursor:"pointer"}}><div style={{width:42,height:42,borderRadius:12,flexShrink:0,background:SMAP[r.status]?.bg,color:SMAP[r.status]?.color,display:"flex",alignItems:"center",justifyContent:"center"}}><Plane size={18}/></div><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.destination}</div><div style={{fontSize:11,color:T.g4,marginTop:3,fontWeight:500}}>{r.code||r.id} - {fs(r.date_from||r.dateFrom)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:14,fontWeight:800}}>{fc(t)}</div><div style={{marginTop:4}}><Badge status={r.status}/></div></div></button>;})}
   </div>;
 }
 
