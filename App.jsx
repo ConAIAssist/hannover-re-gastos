@@ -176,9 +176,9 @@ export default function App(){
         <div style={{fontSize:14,fontWeight:700,marginBottom:20,display:"flex",alignItems:"center",gap:6}}><Lock size={16} color={T.blue}/> Iniciar Sesion</div>
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div><label style={S.lbl}>Correo corporativo</label><input type="email" value={loginEmail} onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}} placeholder="nombre@hannover-re.com" style={S.inp}/></div>
-          <div><label style={S.lbl}>Contrasena</label><input type="password" value={loginPass} onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}} placeholder="Ingrese su contrasena" style={S.inp} onKeyDown={e=>{if(e.key==="Enter"&&loginEmail&&loginPass)doLogin(loginEmail,loginPass).catch(er=>setLoginErr(er.message));}}/></div>
+          <div><label style={S.lbl}>Contraseña</label><input type="password" value={loginPass} onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}} placeholder="Ingrese su contraseña" style={S.inp} onKeyDown={e=>{if(e.key==="Enter"&&loginEmail&&loginPass)doLogin(loginEmail,loginPass).catch(er=>setLoginErr(er.message));}}/></div>
           {loginErr&&<div style={{background:T.redA,borderRadius:T.rs,padding:"10px 14px",fontSize:12,color:T.red,fontWeight:500,display:"flex",alignItems:"center",gap:6}}><AlertCircle size={14}/>{loginErr}</div>}
-          <button onClick={()=>{if(!loginEmail||!loginPass){setLoginErr("Ingrese correo y contrasena");return;}doLogin(loginEmail,loginPass).catch(er=>setLoginErr(er.message));}} style={{...S.btn(T.blue),width:"100%",padding:14,borderRadius:12,fontSize:15}}><LogIn size={16}/> Ingresar</button>
+          <button onClick={()=>{if(!loginEmail||!loginPass){setLoginErr("Ingrese correo y contraseña");return;}doLogin(loginEmail,loginPass).catch(er=>setLoginErr(er.message));}} style={{...S.btn(T.blue),width:"100%",padding:14,borderRadius:12,fontSize:15}}><LogIn size={16}/> Ingresar</button>
         </div>
       </div>
       <div style={{...S.card,padding:16,marginTop:12}}>
@@ -186,7 +186,7 @@ export default function App(){
         <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:180,overflowY:"auto"}}>{INIT_USERS.map(u=><button key={u.id} onClick={()=>{setLoginEmail(u.email||"");setLoginPass("demo123");setLoginErr("");}} style={{background:"none",border:"none",padding:"4px 0",fontSize:11,color:T.blue,textAlign:"left",display:"flex",alignItems:"center",gap:6}}>
           <Mail size={10}/> {u.email} <span style={{color:T.g4}}>({rl(u.role).label})</span>
         </button>)}</div>
-        <div style={{fontSize:10,color:T.g4,marginTop:8,fontStyle:"italic"}}>Toca un correo para autocompletar. Contrasena: cualquiera.</div>
+        <div style={{fontSize:10,color:T.g4,marginTop:8,fontStyle:"italic"}}>Toca un correo para autocompletar. Contraseña: cualquiera.</div>
       </div>
       <div style={{textAlign:"center",marginTop:14,fontSize:11,color:T.g4}}>En produccion se integra con SSO / Active Directory de Hannover Re</div>
     </div>
