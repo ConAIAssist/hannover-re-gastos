@@ -142,9 +142,17 @@ app.delete("/api/currencies/:code", auth, (req, res) => { db.removeCurrency(req.
 
 // ══════ SERVE FRONTEND ══════
 const distPath = join(__dirname, "dist");
-if (existsSync(distPath)) {
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => { if (!req.path.startsWith("/api")) res.sendFile(join(distPath, "index.html")); });
-}
+console.log("Looking for dist at:", distPath, "exists:", existsSync(distPath));
+
+app.use(express.static(distPath));
+app.get("*", (req, res) => {
+  if (req.path.startsWith("/api")) return res.status(404).json({ error: "Ruta no encontrada" });
+  const indexPath = join(distPath, "index.html");
+  if (existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.send(`<html><body><h1>Hannover Re Gastos API</h1><p>Backend activo. Frontend no encontrado en: ${distPath}</p><p>Ejecute: npm run build</p></body></html>`);
+  }
+});
 
 app.listen(PORT, () => console.log(`Hannover Re Gastos API: http://localhost:${PORT}`));
