@@ -9,7 +9,7 @@ import {
   Receipt, Globe, Edit3,
   ChevronLeft, AlertCircle, RefreshCw, Wifi, WifiOff,
   Download, Image, Paperclip, Shield, FileSpreadsheet, Save,
-  Search, Mail, Building2, UserPlus, Pencil, ArrowLeftRight, LogIn, Lock
+  Search, Mail, Building2, UserPlus, Pencil, ArrowLeftRight, LogIn, Lock, Copy
 } from "lucide-react";
 
 const T = {
@@ -126,7 +126,7 @@ export default function App(){
   const[loggedIn,setLoggedIn]=useState(()=>!!getToken());
   const[au,sAu]=useState([]);
   const[cu,sCu]=useState(()=>{try{const t=getToken();if(!t)return null;const p=JSON.parse(atob(t.split(".")[1]));return{id:p.id,email:p.email,role:p.role,name:p.name,area:p.area};}catch(e){return null;}});
-  const[pg,sPg]=useState("dashboard");const[rpts,sRpts]=useState([]);const[sel,sSel]=useState(null);const[snr,sSnr]=useState(false);const[edt,sEdt]=useState(null);const[um,sUm]=useState(false);const[toast,sToast]=useState(null);const[loading,setLoading]=useState(true);
+  const[pg,sPg]=useState("dashboard");const[rpts,sRpts]=useState([]);const[sel,sSel]=useState(null);const[snr,sSnr]=useState(false);const[edt,sEdt]=useState(null);const[um,sUm]=useState(false);const[toast,sToast]=useState(null);const[loading,setLoading]=useState(true);const[dupData,sDup]=useState(null);
   const{trm,trmDate,loading:tl,error:te,currencies:cc,refresh:rf,addCurrency:addC,removeCurrency:remC}=useTRM();
 
   const loadData=useCallback(async()=>{try{const[users,reports]=await Promise.all([api("/users"),api("/reports")]);sAu(users);sRpts(reports);}catch(e){console.error(e);}finally{setLoading(false);}},[]);
@@ -140,7 +140,8 @@ export default function App(){
   const hAppr=async(rid,c="")=>{try{const r=await api("/reports/"+rid+"/approve",{method:"POST",body:{comment:c}});sRpts(p=>p.map(x=>x.id===rid?r:x));sSel(null);st("Reporte aprobado");}catch(e){st("Error: "+e.message);}};
   const hRej=async(rid,c)=>{try{const r=await api("/reports/"+rid+"/reject",{method:"POST",body:{comment:c||"Rechazado"}});sRpts(p=>p.map(x=>x.id===rid?r:x));sSel(null);st("Reporte rechazado");}catch(e){st("Error: "+e.message);}};
   const hUpd=async(u)=>{try{const r=await api("/reports/"+u.id,{method:"PUT",body:{destination:u.destination,tripPurpose:u.trip_purpose||u.tripPurpose,dateFrom:u.date_from||u.dateFrom,dateTo:u.date_to||u.dateTo,currency:u.currency,costCenter:u.cost_center||u.costCenter,type:u.type,expenses:u.expenses}});sRpts(p=>p.map(x=>x.id===u.id?r:x));sEdt(null);sSel(r);st("Actualizado");}catch(e){st("Error: "+e.message);}};
-  const nav=p=>{sPg(p);sSel(null);sSnr(false);sEdt(null);};
+  const nav=p=>{sPg(p);sSel(null);sSnr(false);sEdt(null);sDup(null);};
+  const handleDup=(r)=>{sDup(r);sSnr(true);sPg("reports");st("Plantilla copiada — edita y envia");};
   const adm=["admin","general_manager","vp","director","hr","it_admin"];
   const ni=[{id:"dashboard",label:"Inicio",icon:<Home size={20}/>},{id:"reports",label:"Reportes",icon:<FileText size={20}/>},...(pa.length>0?[{id:"approvals",label:"Aprobar",icon:<CheckCircle2 size={20}/>,badge:pa.length}]:[]),{id:"rates",label:"Tasas",icon:<Globe size={20}/>},...(cu&&adm.includes(cu.role)?[{id:"users",label:"Usuarios",icon:<Users size={20}/>}]:[])];
 
@@ -150,9 +151,9 @@ export default function App(){
   const content=(()=>{
     if(pg==="dashboard")return<Dash rpts={my} cu={cu} nav={nav} sel={r=>{sSel(r);sPg("reports");}} pa={pa} cc={cc} trm={trm} td={trmDate} tl={tl} te={te} rf={rf}/>;
     if(pg==="reports"&&edt)return<Edit rpt={edt} cc={cc} onX={()=>sEdt(null)} onS={hUpd}/>;
-    if(pg==="reports"&&sel)return<Det rpt={sel} cu={cu} onB={()=>sSel(null)} onA={hAppr} onR={hRej} cc={cc} ce={sel.status!=="approved_final"&&sel.status!=="rejected"} onE={()=>sEdt(sel)} onU={hUpd}/>;
-    if(pg==="reports"&&snr)return<New cu={cu} onX={()=>sSnr(false)} onS={async(r)=>{try{const nr=await api("/reports",{method:"POST",body:r});sRpts(p=>[nr,...p]);sSnr(false);st("Reporte creado");}catch(e){st("Error: "+e.message);}}} cc={cc}/>;
-    if(pg==="reports")return<List rpts={my} sel={sSel} nr={()=>sSnr(true)} cu={cu} cc={cc}/>;
+    if(pg==="reports"&&sel)return<Det rpt={sel} cu={cu} onB={()=>sSel(null)} onA={hAppr} onR={hRej} cc={cc} ce={sel.status!=="approved_final"&&sel.status!=="rejected"} onE={()=>sEdt(sel)} onU={hUpd} onDup={handleDup}/>;
+    if(pg==="reports"&&snr)return<New cu={cu} onX={()=>{sSnr(false);sDup(null);}} onS={async(r)=>{try{const nr=await api("/reports",{method:"POST",body:r});sRpts(p=>[nr,...p]);sSnr(false);sDup(null);st("Reporte creado");}catch(e){st("Error: "+e.message);}}} cc={cc} dup={dupData}/>;
+    if(pg==="reports")return<List rpts={my} sel={sSel} nr={()=>sSnr(true)} cu={cu} cc={cc} onDup={handleDup}/>;
     if(pg==="approvals"&&sel)return<Det rpt={sel} cu={cu} onB={()=>sSel(null)} onA={hAppr} onR={hRej} cc={cc} ce={false} onE={()=>{}} onU={hUpd}/>;
     if(pg==="approvals")return<Appr rpts={pa} sel={sSel} cc={cc}/>;
     if(pg==="rates")return<Rates cc={cc} trm={trm} td={trmDate} tl={tl} te={te} rf={rf} addC={addC} remC={remC} st={st}/>;
@@ -285,20 +286,20 @@ function Dash({rpts,cu,nav,sel,pa,cc,trm,td,tl,te,rf}){
   </div>;
 }
 
-function List({rpts,sel,nr,cu,cc}){const[f,sf]=useState("all");const fl=f==="all"?rpts:rpts.filter(r=>r.status===f);const emp=["employee","analyst","senior_analyst","specialist","intern","assistant"];
+function List({rpts,sel,nr,cu,cc,onDup}){const[f,sf]=useState("all");const fl=f==="all"?rpts:rpts.filter(r=>r.status===f);const emp=["employee","analyst","senior_analyst","specialist","intern","assistant"];
   return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}><h1 style={{fontSize:22,fontWeight:800,letterSpacing:"-0.02em"}}>Reportes</h1>{emp.includes(cu.role)&&<button onClick={nr} style={S.btn(T.blue)}><Plus size={15}/> Nuevo</button>}</div>
     <div style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:4}}>{[{id:"all",label:"Todos"},...Object.entries(SMAP).map(([id,v])=>({id,label:v.label}))].map(x=><button key={x.id} onClick={()=>sf(x.id)} style={{padding:"7px 14px",borderRadius:20,border:"1.5px solid",borderColor:f===x.id?T.blue:T.g2,background:f===x.id?T.blueA:"white",color:f===x.id?T.blue:T.g5,fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{x.label}</button>)}</div>
-    {fl.map(r=>{const t=gt(r,cc);return<button key={r.id} onClick={()=>sel(r)} style={{...S.card,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,textAlign:"left",width:"100%",marginBottom:10,cursor:"pointer"}}><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:T.g6,fontFamily:"monospace"}}>{r.id}</span><Badge status={r.status}/></div><div style={{fontSize:14,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.destination} &mdash; {r.tripPurpose}</div><div style={{fontSize:11,color:T.g4,marginTop:4,fontWeight:500}}>{fs(r.dateFrom)} - {fs(r.dateTo)} | {r.expenses.length} gastos</div></div><div style={{fontSize:16,fontWeight:800,flexShrink:0}}>{fc(t)}</div></button>;})}
+    {fl.map(r=>{const t=gt(r,cc);return<div key={r.id} style={{...S.card,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,marginBottom:10,cursor:"pointer"}} onClick={()=>sel(r)}><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{fontSize:12,fontWeight:800,color:T.g6,fontFamily:"monospace"}}>{r.code||r.id}</span><Badge status={r.status}/></div><div style={{fontSize:14,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.destination} &mdash; {r.trip_purpose||r.tripPurpose}</div><div style={{fontSize:11,color:T.g4,marginTop:4,fontWeight:500}}>{fs(r.date_from||r.dateFrom)} - {fs(r.date_to||r.dateTo)} | {(r.expenses||[]).length} gastos</div></div><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}}><div style={{fontSize:16,fontWeight:800}}>{fc(t)}</div>{emp.includes(cu.role)&&<button onClick={e=>{e.stopPropagation();onDup(r);}} style={{...S.gh,color:T.blue,background:T.blueA,borderRadius:T.rx,padding:"4px 8px",fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3}}><Copy size={11}/> Duplicar</button>}</div></div>;})}
     {fl.length===0&&<div style={{textAlign:"center",padding:48,color:T.g4}}><FileText size={36} style={{margin:"0 auto 10px",opacity:0.4}}/><div style={{fontSize:14}}>Sin reportes</div></div>}
   </div>;
 }
 
-function Det({rpt,cu,onB,onA,onR,cc,ce,onE,onU}){const[cm,sCm]=useState("");const[tab,sTab]=useState("expenses");const[am,sAm]=useState(null);const[va,sVa]=useState(null);const attRef=useRef();
+function Det({rpt,cu,onB,onA,onR,cc,ce,onE,onU,onDup}){const[cm,sCm]=useState("");const[tab,sTab]=useState("expenses");const[am,sAm]=useState(null);const[va,sVa]=useState(null);const attRef=useRef();
   const tot=gt(rpt,cc);const ar={team_leader:["submitted"],supervisor:["submitted"],coordinator:["submitted"],manager:["submitted"],admin:["approved_leader"],accountant:["approved_admin"],treasury:["approved_admin"],general_manager:["approved_accountant"],vp:["approved_accountant"],director:["approved_accountant"]};
   const ca=ar[cu.role]?.includes(rpt.status)&&(["admin","accountant","treasury","general_manager","vp","director"].includes(cu.role)||rpt.area===cu.area);
   const aa=(eid,file)=>{if(!file)return;const fd=new FormData();fd.append("file",file);api("/expenses/"+eid+"/attach",{method:"POST",body:fd}).then(atts=>{onU({...rpt,expenses:rpt.expenses.map(e=>e.id===eid?{...e,has_receipt:1,hasReceipt:true,attachments:atts}:e)});sAm(null);}).catch(e=>console.error(e));};
   return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><button onClick={onB} style={{...S.gh,color:T.g5,gap:4,fontSize:13,fontWeight:600}}><ChevronLeft size={18}/> Volver</button>{ce&&<button onClick={onE} style={S.btn(T.blueA,T.blue)}><Edit3 size={14}/> Editar</button>}</div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><button onClick={onB} style={{...S.gh,color:T.g5,gap:4,fontSize:13,fontWeight:600}}><ChevronLeft size={18}/> Volver</button><div style={{display:"flex",gap:6}}>{onDup&&<button onClick={()=>onDup(rpt)} style={S.btn(T.g1,T.blue)}><Copy size={13}/> Duplicar</button>}{ce&&<button onClick={onE} style={S.btn(T.blueA,T.blue)}><Edit3 size={14}/> Editar</button>}</div></div>
     <div style={{...S.card,padding:18,marginBottom:14}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:13,fontWeight:800,fontFamily:"monospace",color:T.g6}}>{rpt.id}</span><Badge status={rpt.status}/></div><div style={{fontSize:17,fontWeight:700,marginBottom:12}}>{rpt.destination} &mdash; {rpt.tripPurpose}</div>
       <div style={{background:"linear-gradient(145deg,"+T.navy+","+T.navyL+")",borderRadius:12,padding:"14px 18px",color:"white",marginBottom:14,position:"relative",overflow:"hidden",boxShadow:"0 4px 12px rgba(10,30,61,0.2)"}}><div style={{position:"absolute",top:-20,right:-20,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/><div style={{fontSize:11,opacity:0.6,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Total Pesos Colombianos</div><div style={{fontSize:28,fontWeight:800,marginTop:4,letterSpacing:"-0.02em"}}>{fc(tot)}</div><div style={{fontSize:11,opacity:0.5,marginTop:4}}>Aprox USD {(tot/(cc.find(c=>c.code==="USD")?.rateToCOP||4250)).toFixed(2)}</div></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,fontSize:12}}>{[{l:"Empleado",v:rpt.employeeName},{l:"CC",v:rpt.cc},{l:"Area",v:rpt.area},{l:"Periodo",v:fs(rpt.dateFrom)+" - "+fs(rpt.dateTo)},{l:"Tipo",v:rpt.type==="tarjeta"?"TC Corp.":"Anticipo"},{l:"C.Costo",v:rpt.costCenter||"--"}].map((f,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid "+T.g1}}><div style={{fontSize:10,color:T.g4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{f.l}</div><div style={{fontWeight:700,marginTop:3}}>{f.v}</div></div>)}</div>
@@ -334,7 +335,7 @@ function Edit({rpt,cc,onX,onS}){const[f,sf]=useState({destination:rpt.destinatio
   </div>;
 }
 
-function New({cu,onX,onS,cc}){const[f,sf]=useState({destination:"",tripPurpose:"",dateFrom:"",dateTo:"",currency:"COP",costCenter:"",type:"anticipo"});const[ex,se]=useState([]);const[sa,ssa]=useState(false);
+function New({cu,onX,onS,cc,dup}){const[f,sf]=useState(dup?{destination:dup.destination||"",tripPurpose:dup.trip_purpose||dup.tripPurpose||"",dateFrom:"",dateTo:"",currency:dup.currency||"COP",costCenter:dup.cost_center||dup.costCenter||"",type:dup.type||"anticipo"}:{destination:"",tripPurpose:"",dateFrom:"",dateTo:"",currency:"COP",costCenter:"",type:"anticipo"});const[ex,se]=useState(dup?(dup.expenses||[]).map((e,i)=>({...e,id:Date.now()+i,attachments:[],hasReceipt:false,has_receipt:0})):[]);const[sa,ssa]=useState(false);
   const sub=d=>{onS({id:gid(),employeeId:cu.id,employeeName:cu.name,area:cu.area,cc:cu.cc,...f,presentationDate:new Date().toISOString().split("T")[0],status:d?"draft":"submitted",currentStep:d?1:2,expenses:ex,approvals:d?[]:[{step:1,by:cu.name,date:new Date().toISOString().split("T")[0],comment:""}],createdAt:new Date().toISOString().split("T")[0]});};
   return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}><button onClick={onX} style={{...S.gh,color:T.g5,gap:4,fontSize:13,fontWeight:600,marginBottom:14}}><ChevronLeft size={18}/> Cancelar</button><h1 style={{fontSize:22,fontWeight:800,marginBottom:16,letterSpacing:"-0.02em"}}>Nuevo Reporte</h1>
     <TF form={f} sf={sf} currencies={cc}/><EF expenses={ex} setExpenses={se} currencies={cc} sa={sa} ssa={ssa}/>
