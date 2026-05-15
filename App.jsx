@@ -141,9 +141,9 @@ export default function App(){
   const hRej=async(rid,c)=>{try{const r=await api("/reports/"+rid+"/reject",{method:"POST",body:{comment:c||"Rechazado"}});sRpts(p=>p.map(x=>x.id===rid?r:x));sSel(null);st("Reporte rechazado");}catch(e){st("Error: "+e.message);}};
   const hUpd=async(u)=>{try{const r=await api("/reports/"+u.id,{method:"PUT",body:{destination:u.destination,tripPurpose:u.trip_purpose||u.tripPurpose,dateFrom:u.date_from||u.dateFrom,dateTo:u.date_to||u.dateTo,currency:u.currency,costCenter:u.cost_center||u.costCenter,type:u.type,expenses:u.expenses}});sRpts(p=>p.map(x=>x.id===u.id?r:x));sEdt(null);sSel(r);st("Actualizado");}catch(e){st("Error: "+e.message);}};
   const nav=p=>{sPg(p);sSel(null);sSnr(false);sEdt(null);sDup(null);};
-  const handleDup=(r)=>{sDup(r);sSnr(true);sPg("reports");st("Plantilla copiada — edita y envia");};
+  const handleDup=(r)=>{sSel(null);sEdt(null);sDup(r);sSnr(true);sPg("reports");};
   const adm=["admin","general_manager","vp","director","hr","it_admin"];
-  const ni=[{id:"dashboard",label:"Inicio",icon:<Home size={20}/>},{id:"reports",label:"Reportes",icon:<FileText size={20}/>},...(pa.length>0?[{id:"approvals",label:"Aprobar",icon:<CheckCircle2 size={20}/>,badge:pa.length}]:[]),{id:"rates",label:"Tasas",icon:<Globe size={20}/>},...(cu&&adm.includes(cu.role)?[{id:"users",label:"Usuarios",icon:<Users size={20}/>}]:[])];
+  const ni=[{id:"dashboard",label:"Inicio",icon:<Home size={20}/>},{id:"reports",label:"Reportes",icon:<FileText size={20}/>},...(pa.length>0?[{id:"approvals",label:"Aprobar",icon:<CheckCircle2 size={20}/>,badge:pa.length}]:[]),{id:"history",label:"Historial",icon:<Clock size={20}/>},{id:"rates",label:"Tasas",icon:<Globe size={20}/>},...(cu&&adm.includes(cu.role)?[{id:"users",label:"Usuarios",icon:<Users size={20}/>}]:[])];
 
   /* ── LOADING after login ── */
   if(loggedIn&&!cu)return<div style={{fontFamily:T.font,background:T.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{globalStyles}</style><div style={{textAlign:"center"}}><div style={{width:50,height:50,borderRadius:14,background:"linear-gradient(145deg,"+T.navy+","+T.navyL+")",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:16,fontWeight:800,marginBottom:16}}>HR</div><div style={{fontSize:14,color:T.g4}}>Cargando...</div></div></div>;
@@ -158,6 +158,8 @@ export default function App(){
     if(pg==="approvals")return<Appr rpts={pa} sel={sSel} cc={cc}/>;
     if(pg==="rates")return<Rates cc={cc} trm={trm} td={trmDate} tl={tl} te={te} rf={rf} addC={addC} remC={remC} st={st}/>;
     if(pg==="import")return<Imp cc={cc} onI={async(r)=>{try{const nr=await api("/reports",{method:"POST",body:r});sRpts(p=>[nr,...p]);nav("reports");st("Importado");}catch(e){st("Error: "+e.message);}}} cu={cu}/>;
+    if(pg==="history"&&sel)return<Det rpt={sel} cu={cu} onB={()=>sSel(null)} onA={hAppr} onR={hRej} cc={cc} ce={false} onE={()=>{}} onU={hUpd} onDup={handleDup}/>;
+    if(pg==="history")return<History rpts={my} cu={cu} sel={sSel} cc={cc} onDup={handleDup}/>;
     if(pg==="users")return<Usr users={au} setUsers={sAu} st={st}/>;
     return null;})();
 
@@ -344,7 +346,78 @@ function New({cu,onX,onS,cc,dup}){const[f,sf]=useState(dup?{destination:dup.dest
 }
 
 function Appr({rpts,sel,cc}){return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}><h1 style={{fontSize:22,fontWeight:800,marginBottom:4,letterSpacing:"-0.02em"}}>Aprobaciones</h1><p style={{fontSize:13,color:T.g4,marginBottom:16,fontWeight:500}}>{rpts.length} pendiente(s)</p>
-  {rpts.map(r=>{const t=gt(r,cc);return<div key={r.id} style={{...S.card,padding:16,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:13,fontWeight:800,fontFamily:"monospace",color:T.g6}}>{r.id}</span><Badge status={r.status}/></div><div style={{fontSize:14,fontWeight:600}}>{r.employeeName} &mdash; {r.destination}</div><div style={{fontSize:12,color:T.g4,marginTop:3}}>{r.tripPurpose}</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12}}><div style={{fontSize:18,fontWeight:800}}>{fc(t)}</div><button onClick={()=>sel(r)} style={S.btn(T.blue)}>Revisar</button></div></div>;})}</div>;}
+  {rpts.map(r=>{const t=gt(r,cc);return<div key={r.id} style={{...S.card,padding:16,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:13,fontWeight:800,fontFamily:"monospace",color:T.g6}}>{r.code||r.id}</span><Badge status={r.status}/></div><div style={{fontSize:14,fontWeight:600}}>{r.employee_name||r.employeeName} &mdash; {r.destination}</div><div style={{fontSize:12,color:T.g4,marginTop:3}}>{r.trip_purpose||r.tripPurpose}</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12}}><div style={{fontSize:18,fontWeight:800}}>{fc(t)}</div><button onClick={()=>sel(r)} style={S.btn(T.blue)}>Revisar</button></div></div>;})}</div>;}
+
+/* ════════════ HISTORY ════════════ */
+function History({rpts,cu,sel,cc,onDup}){
+  const[filterY,setFY]=useState("all");const[filterM,setFM]=useState("all");const[filterD,setFD]=useState("");
+  const leaderRoles=["team_leader","supervisor","coordinator","manager","admin","accountant","treasury","director","vp","general_manager"];
+  const isManager=leaderRoles.includes(cu.role);
+  const completed=rpts.filter(r=>r.status==="approved_final"||r.status==="rejected");
+  const months=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+  // Get unique years
+  const years=[...new Set(completed.map(r=>{const d=r.created_at||r.date_from||r.dateFrom||"";return d.slice(0,4);}).filter(y=>y))].sort().reverse();
+
+  // Apply filters
+  let filtered=completed;
+  if(filterY!=="all")filtered=filtered.filter(r=>(r.created_at||r.date_from||"").startsWith(filterY));
+  if(filterM!=="all")filtered=filtered.filter(r=>{const d=r.created_at||r.date_from||"";const m=d.slice(5,7);return m===filterM;});
+  if(filterD)filtered=filtered.filter(r=>(r.created_at||r.date_from||"")===filterD);
+
+  // Group by month for managers
+  const grouped={};
+  if(isManager){filtered.forEach(r=>{const d=r.created_at||r.date_from||"";const key=d.slice(0,7)||"Sin fecha";if(!grouped[key])grouped[key]=[];grouped[key].push(r);});}
+
+  const sortedKeys=Object.keys(grouped).sort().reverse();
+
+  return<div className="fi" style={{maxWidth:600,margin:"0 auto"}}>
+    <h1 style={{fontSize:22,fontWeight:800,letterSpacing:"-0.02em",marginBottom:4}}>Historial</h1>
+    <p style={{fontSize:13,color:T.g4,marginBottom:14,fontWeight:500}}>{completed.length} reportes procesados</p>
+
+    {/* Filters */}
+    <div style={{...S.card,padding:14,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Search size={14} color={T.blue}/> Filtros</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <div style={{flex:"1 1 80px"}}><label style={{...S.lbl,fontSize:10}}>Ano</label><select value={filterY} onChange={e=>setFY(e.target.value)} style={{...S.inp,fontSize:12,padding:"8px 10px"}}><option value="all">Todos</option>{years.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
+        <div style={{flex:"1 1 80px"}}><label style={{...S.lbl,fontSize:10}}>Mes</label><select value={filterM} onChange={e=>setFM(e.target.value)} style={{...S.inp,fontSize:12,padding:"8px 10px"}}><option value="all">Todos</option>{months.map((m,i)=><option key={i} value={String(i+1).padStart(2,"0")}>{m}</option>)}</select></div>
+        <div style={{flex:"1 1 120px"}}><label style={{...S.lbl,fontSize:10}}>Fecha exacta</label><input type="date" value={filterD} onChange={e=>setFD(e.target.value)} style={{...S.inp,fontSize:12,padding:"8px 10px"}}/></div>
+      </div>
+      {(filterY!=="all"||filterM!=="all"||filterD)&&<button onClick={()=>{setFY("all");setFM("all");setFD("");}} style={{...S.btn(T.g1,T.g5),marginTop:8,padding:"6px 12px",fontSize:11}}>Limpiar filtros</button>}
+    </div>
+
+    {/* Stats */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{...S.card,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:T.green}}>{filtered.filter(r=>r.status==="approved_final").length}</div><div style={{fontSize:10,color:T.g4,marginTop:2}}>Aprobados</div></div>
+      <div style={{...S.card,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:T.red}}>{filtered.filter(r=>r.status==="rejected").length}</div><div style={{fontSize:10,color:T.g4,marginTop:2}}>Rechazados</div></div>
+    </div>
+
+    {/* Manager grouped view */}
+    {isManager&&sortedKeys.length>0?sortedKeys.map(key=>{const items=grouped[key];const[y,m]=key.split("-");const label=m?months[parseInt(m)-1]+" "+y:key;const total=items.reduce((s,r)=>s+gt(r,cc),0);
+      return<div key={key} style={{marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,padding:"8px 12px",background:T.blueA,borderRadius:T.rs}}>
+          <div style={{fontSize:14,fontWeight:700,color:T.blue}}>{label}</div>
+          <div style={{fontSize:12,fontWeight:700,color:T.g6}}>{items.length} reportes &bull; {fc(total)}</div>
+        </div>
+        {items.map(r=><HistoryCard key={r.id} r={r} cc={cc} sel={sel} onDup={onDup}/>)}
+      </div>;
+    }):<div>{filtered.map(r=><HistoryCard key={r.id} r={r} cc={cc} sel={sel} onDup={onDup}/>)}</div>}
+
+    {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.g4}}><Clock size={36} style={{margin:"0 auto 10px",opacity:0.4}}/><div style={{fontSize:14}}>Sin registros para estos filtros</div></div>}
+  </div>;
+}
+
+function HistoryCard({r,cc,sel,onDup}){
+  const t=gt(r,cc);
+  return<div style={{...S.card,padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+    <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>sel(r)}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}><span style={{fontSize:11,fontWeight:800,fontFamily:"monospace",color:T.g4}}>{r.code||r.id}</span><Badge status={r.status}/></div>
+      <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.employee_name||r.employeeName} &mdash; {r.destination}</div>
+      <div style={{fontSize:11,color:T.g4,marginTop:2}}>{fs(r.created_at||r.date_from)} &bull; {(r.expenses||[]).length} gastos &bull; {fc(t)}</div>
+    </div>
+    <button onClick={()=>onDup(r)} style={{...S.gh,color:T.blue,background:T.blueA,borderRadius:T.rs,padding:"6px 10px",fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={12}/> Duplicar</button>
+  </div>;
+}
 
 function Imp({cc,onI,cu}){const[pv,sPv]=useState(null);const fr=useRef();
   const parseRows=(rows)=>{const ex=[];for(let i=1;i<rows.length;i++){const c=rows[i];if(!c||c.length<2)continue;const vals=c.map(x=>String(x||"").trim());const d=vals.find(x=>/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(x))||vals.find(x=>/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(x))||"";const a=vals.find(x=>/^[\d.,]+$/.test(x)&&parseFloat(x.replace(/,/g,""))>0);const am=a?parseFloat(a.replace(/,/g,"")):0;const ds=vals.find(x=>x.length>3&&!/^[\d.,/\-]+$/.test(x))||"Gasto "+i;if(am>0)ex.push({id:Date.now()+i,date:d||new Date().toISOString().split("T")[0],currency:"COP",category:"otros",amount:am,obs:ds,hasReceipt:false,attachments:[]});}return ex;};
