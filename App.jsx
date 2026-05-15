@@ -86,8 +86,8 @@ function rl(id){return ROLES.find(r=>r.id===id)||ROLES[0];}
 
 /* ── API CLIENT ── */
 const API_BASE = "/api";
-const getToken = () => localStorage.getItem("hr_token");
-const setToken = (t) => t ? localStorage.setItem("hr_token", t) : localStorage.removeItem("hr_token");
+const getToken = () => sessionStorage.getItem("hr_token");
+const setToken = (t) => t ? sessionStorage.setItem("hr_token", t) : sessionStorage.removeItem("hr_token");
 
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
