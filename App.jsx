@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   FileText, Upload, Check, X, Clock, DollarSign, Plane,
@@ -83,6 +85,106 @@ function fs(d){return d?new Date(d+"T12:00:00").toLocaleDateString("es-CO",{day:
 function gid(){return"RPT-"+new Date().getFullYear()+"-"+String(Math.floor(Math.random()*900)+100);}
 function ini(n){return n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();}
 function rl(id){return ROLES.find(r=>r.id===id)||ROLES[0];}
+
+/* ── EXPORT FUNCTIONS ── */
+function exportExcel(rpt,cc){
+  const code=rpt.code||rpt.id;
+  const cat=(id)=>{const c=CATS.find(x=>x.id===id);return c?c.label:id;};
+  // Info sheet
+  const info=[
+    ["REPORTE DE GASTOS DE VIAJE - HANNOVER RE"],
+    [],
+    ["Codigo",code],
+    ["Empleado",rpt.employee_name||rpt.employeeName||""],
+    ["Area",rpt.area||""],
+    ["C.C.",rpt.cc||""],
+    ["Destino",rpt.destination||""],
+    ["Motivo",rpt.trip_purpose||rpt.tripPurpose||""],
+    ["Fecha desde",fd(rpt.date_from||rpt.dateFrom)],
+    ["Fecha hasta",fd(rpt.date_to||rpt.dateTo)],
+    ["Tipo",rpt.type==="anticipo"?"Anticipo en Dinero":"Tarjeta Corporativa"],
+    ["Centro de costo",rpt.cost_center||rpt.costCenter||""],
+    ["Estado",(SMAP[rpt.status]?.label)||rpt.status],
+    [],
+    ["GASTOS"],
+    ["Fecha","Categoria","Descripcion","Moneda","Monto","Monto en COP"],
+  ];
+  (rpt.expenses||[]).forEach(e=>{
+    info.push([fd(e.date),cat(e.category),e.obs||"",e.currency,e.amount,Math.round(cv(e.amount,e.currency,cc))]);
+  });
+  info.push([]);
+  info.push(["","","","","TOTAL COP",Math.round(gt(rpt,cc))]);
+  // Approvals
+  if((rpt.approvals||[]).length>0){
+    info.push([]);
+    info.push(["HISTORIAL DE APROBACION"]);
+    info.push(["Paso","Responsable","Fecha","Comentario"]);
+    rpt.approvals.forEach(a=>info.push([a.step,a.by_name||a.by||"",fd(a.date),a.comment||""]));
+  }
+  const ws=XLSX.utils.aoa_to_sheet(info);
+  ws["!cols"]=[{wch:16},{wch:20},{wch:32},{wch:10},{wch:14},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Reporte");
+  XLSX.writeFile(wb,"Reporte_"+code+".xlsx");
+}
+
+function exportPDF(rpt,cc){
+  const code=rpt.code||rpt.id;
+  const cat=(id)=>{const c=CATS.find(x=>x.id===id);return c?c.label:id;};
+  const doc=new jsPDF();
+  // Header
+  doc.setFillColor(10,30,61);doc.rect(0,0,210,28,"F");
+  doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont(undefined,"bold");
+  doc.text("HANNOVER RE",14,13);
+  doc.setFontSize(10);doc.setFont(undefined,"normal");
+  doc.text("Reporte de Gastos de Viaje",14,21);
+  doc.setFontSize(13);doc.setFont(undefined,"bold");
+  doc.text(String(code),196,16,{align:"right"});
+  // Info
+  doc.setTextColor(40,40,40);doc.setFontSize(10);doc.setFont(undefined,"normal");
+  let y=38;
+  const info=[
+    ["Empleado:",rpt.employee_name||rpt.employeeName||"","Area:",rpt.area||""],
+    ["Destino:",rpt.destination||"","C.C.:",rpt.cc||""],
+    ["Motivo:",rpt.trip_purpose||rpt.tripPurpose||"","Tipo:",rpt.type==="anticipo"?"Anticipo":"Tarjeta"],
+    ["Desde:",fd(rpt.date_from||rpt.dateFrom),"Hasta:",fd(rpt.date_to||rpt.dateTo)],
+    ["Estado:",(SMAP[rpt.status]?.label)||rpt.status,"C. Costo:",rpt.cost_center||rpt.costCenter||""],
+  ];
+  info.forEach(row=>{
+    doc.setFont(undefined,"bold");doc.text(row[0],14,y);
+    doc.setFont(undefined,"normal");doc.text(String(row[1]),42,y);
+    doc.setFont(undefined,"bold");doc.text(row[2],120,y);
+    doc.setFont(undefined,"normal");doc.text(String(row[3]),145,y);
+    y+=7;
+  });
+  // Expenses table
+  autoTable(doc,{
+    startY:y+4,
+    head:[["Fecha","Categoria","Descripcion","Moneda","Monto","COP"]],
+    body:(rpt.expenses||[]).map(e=>[fd(e.date),cat(e.category),e.obs||"",e.currency,fa(e.amount,e.currency),fc(cv(e.amount,e.currency,cc))]),
+    foot:[["","","","","TOTAL COP",fc(gt(rpt,cc))]],
+    headStyles:{fillColor:[37,99,235],fontStyle:"bold"},
+    footStyles:{fillColor:[10,30,61],textColor:[255,255,255],fontStyle:"bold"},
+    styles:{fontSize:9,cellPadding:3},
+    alternateRowStyles:{fillColor:[245,247,250]},
+  });
+  // Approvals
+  if((rpt.approvals||[]).length>0){
+    autoTable(doc,{
+      startY:doc.lastAutoTable.finalY+8,
+      head:[["Paso","Responsable","Fecha","Comentario"]],
+      body:rpt.approvals.map(a=>[String(a.step),a.by_name||a.by||"",fd(a.date),a.comment||"-"]),
+      headStyles:{fillColor:[5,150,105],fontStyle:"bold"},
+      styles:{fontSize:9,cellPadding:3},
+      alternateRowStyles:{fillColor:[245,247,250]},
+    });
+  }
+  // Footer
+  const ph=doc.internal.pageSize.height;
+  doc.setFontSize(8);doc.setTextColor(150,150,150);
+  doc.text("Generado por el Sistema de Legalizacion de Gastos - Hannover Re Colombia",14,ph-10);
+  doc.save("Reporte_"+code+".pdf");
+}
 
 /* ── API CLIENT ── */
 const API_BASE = "/api";
@@ -330,6 +432,10 @@ function Det({rpt,cu,onB,onA,onR,cc,ce,onE,onU,onDup}){const[cm,sCm]=useState(""
     <div style={{...S.card,padding:18,marginBottom:14}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:13,fontWeight:800,fontFamily:"monospace",color:T.g6}}>{rpt.id}</span><Badge status={rpt.status}/></div><div style={{fontSize:17,fontWeight:700,marginBottom:12}}>{rpt.destination} &mdash; {rpt.tripPurpose}</div>
       <div style={{background:"linear-gradient(145deg,"+T.navy+","+T.navyL+")",borderRadius:12,padding:"14px 18px",color:"white",marginBottom:14,position:"relative",overflow:"hidden",boxShadow:"0 4px 12px rgba(10,30,61,0.2)"}}><div style={{position:"absolute",top:-20,right:-20,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/><div style={{fontSize:11,opacity:0.6,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Total Pesos Colombianos</div><div style={{fontSize:28,fontWeight:800,marginTop:4,letterSpacing:"-0.02em"}}>{fc(tot)}</div><div style={{fontSize:11,opacity:0.5,marginTop:4}}>Aprox USD {(tot/(cc.find(c=>c.code==="USD")?.rateToCOP||4250)).toFixed(2)}</div></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,fontSize:12}}>{[{l:"Empleado",v:rpt.employeeName},{l:"CC",v:rpt.cc},{l:"Area",v:rpt.area},{l:"Periodo",v:fs(rpt.dateFrom)+" - "+fs(rpt.dateTo)},{l:"Tipo",v:rpt.type==="tarjeta"?"TC Corp.":"Anticipo"},{l:"C.Costo",v:rpt.costCenter||"--"}].map((f,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid "+T.g1}}><div style={{fontSize:10,color:T.g4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{f.l}</div><div style={{fontWeight:700,marginTop:3}}>{f.v}</div></div>)}</div>
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:14}}>
+      <button onClick={()=>exportExcel(rpt,cc)} style={{...S.card,flex:1,padding:"11px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:700,color:T.green,cursor:"pointer",border:"1px solid "+T.green+"30"}}><FileSpreadsheet size={15}/> Exportar Excel</button>
+      <button onClick={()=>exportPDF(rpt,cc)} style={{...S.card,flex:1,padding:"11px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:700,color:T.red,cursor:"pointer",border:"1px solid "+T.red+"30"}}><FileText size={15}/> Exportar PDF</button>
     </div>
     <div style={{display:"flex",gap:6,marginBottom:14}}>{[{id:"expenses",label:"Gastos",icon:<Receipt size={14}/>},{id:"approvals",label:"Aprobacion",icon:<CheckCircle2 size={14}/>},{id:"attachments",label:"Soportes",icon:<Paperclip size={14}/>}].map(t=><button key={t.id} onClick={()=>sTab(t.id)} style={{padding:"9px 14px",borderRadius:T.rs,border:"none",flex:1,background:tab===t.id?T.navy:"white",color:tab===t.id?"white":T.g5,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxShadow:tab!==t.id?T.sh1:"none"}}>{t.icon} {t.label}</button>)}</div>
     {tab==="expenses"&&<div style={{...S.card}}>{rpt.expenses.map((e,i)=>{const cat=CATS.find(c=>c.id===e.category);const cop=cv(e.amount,e.currency,cc);return<div key={e.id} style={{padding:"12px 16px",borderBottom:i<rpt.expenses.length-1?"1px solid "+T.g1:"none"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:38,height:38,borderRadius:T.rs,background:(cat?.color||T.g5)+"10",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:17}}>{cat?.icon}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.obs}</div><div style={{fontSize:11,color:T.g4,marginTop:2}}>{fs(e.date)} &bull; {e.currency} {fa(e.amount,e.currency)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:14,fontWeight:800,color:T.green}}>{fc(cop)}</div><div style={{display:"flex",alignItems:"center",gap:4,marginTop:3,justifyContent:"flex-end"}}>{(e.attachments||[]).length>0?<span style={{fontSize:10,color:T.green,display:"flex",alignItems:"center",gap:3,fontWeight:600}}><Paperclip size={10}/>{e.attachments.length}</span>:<span style={{fontSize:10,color:T.amber,fontWeight:500}}>Sin soporte</span>}</div></div></div></div>;})}
